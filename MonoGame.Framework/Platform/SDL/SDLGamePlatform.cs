@@ -29,6 +29,48 @@ namespace Microsoft.Xna.Framework
 
         private readonly List<string> _dropList;
 
+        // If set to true, enables Wayland VSync.
+        public bool WaylandVsync { get; set; }
+
+        // The Wayland frame callback handle. When this is non-zero, we are waiting for the compositor to signal us when
+        // it is a good time to render a frame. This means, with Wayland V-Sync active, don't draw when this is non-zero.
+        private IntPtr _frameCallback;
+
+        // libdl stuff is needed to get a structure pointer from libwayland-client.so.
+        [DllImport("libdl.so.2")]
+        private static extern IntPtr dlopen(string path, int flags);
+        [DllImport("libdl.so.2")]
+        private static extern IntPtr dlsym(IntPtr handle, string symbol);
+        [DllImport("libdl.so.2")]
+        private static extern int dlclose(IntPtr handle);
+
+        // libwayland-client stuff for Wayland V-Sync.
+        [DllImport("libwayland-client.so.0")]
+        private static extern IntPtr wl_proxy_marshal_constructor(IntPtr proxy, uint opcode, IntPtr _interface, IntPtr zero);
+        [DllImport("libwayland-client.so.0")]
+        private static extern int wl_proxy_add_listener(IntPtr proxy, IntPtr implementation, IntPtr data);
+        [DllImport("libwayland-client.so.0")]
+        private static extern void wl_proxy_destroy(IntPtr proxy);
+
+        private IntPtr _libwayland_client_handle;
+        private IntPtr _wl_surface;
+        private IntPtr _wl_callback_interface;
+
+        // The callback listener structure and its corresponding delegate.
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WlCallbackListener
+        {
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            public delegate void d_done(IntPtr data, IntPtr wl_callback, uint callback_data);
+
+            public IntPtr Done;
+        };
+        private WlCallbackListener.d_done _frameDoneDelegate;
+        private WlCallbackListener _listener;
+
+        // A handle to pin the listener so the GC doesn't move it.
+        private GCHandle _listenerHandle;
+
         public SdlGamePlatform(Game game)
             : base(game)
         {
@@ -50,21 +92,68 @@ namespace Microsoft.Xna.Framework
             _dropList = new List<string>();
 
             Sdl.Init((int)(
-                Sdl.InitFlags.Video |
                 Sdl.InitFlags.Joystick |
                 Sdl.InitFlags.GameController |
                 Sdl.InitFlags.Haptic
             ));
 
+            if (game.PreferWayland)
+            {
+                if (Sdl.VideoInit("wayland") < 0)
+                    Sdl.VideoInit(null);
+            }
+            else
+            {
+                Sdl.VideoInit(null);
+            }
+
             Sdl.DisableScreenSaver();
 
             GamePad.InitDatabase();
             Window = _view = new SdlGameWindow(_game);
+
+            WaylandVsync = false;
+            _frameCallback = IntPtr.Zero;
+
+            _libwayland_client_handle = IntPtr.Zero;
+            _wl_surface = IntPtr.Zero;
+            _wl_callback_interface = IntPtr.Zero;
+
+            _frameDoneDelegate = FrameDone;
+            _listener = new WlCallbackListener
+            {
+                Done = Marshal.GetFunctionPointerForDelegate(_frameDoneDelegate)
+            };
+            // Prevent the GC from moving the listener around, as the C Wayland library will have a pointer to it.
+            _listenerHandle = GCHandle.Alloc(_listener, GCHandleType.Pinned);
         }
 
         public override void BeforeInitialize()
         {
             SdlRunLoop();
+
+            if (CurrentPlatform.OS == OS.Linux)
+            {
+                // Get the WM type.
+                Sdl.GetVersion(out var version);
+                var sys = new Sdl.Window.SDL_SysWMinfo
+                {
+                    version = version
+                };
+
+                if (Sdl.Window.GetWindowWMInfo(Window.Handle, ref sys))
+                {
+                    if (sys.subsystem == Sdl.Window.SysWMType.Wayland)
+                    {
+                        // Get pointer to wl_surface and the wl_callback_interface to be able to request a frame callback.
+                        _wl_surface = sys.wl_surface;
+
+                        _libwayland_client_handle = dlopen("libwayland-client.so.0", 1);
+                        if (_libwayland_client_handle != IntPtr.Zero)
+                            _wl_callback_interface = dlsym(_libwayland_client_handle, "wl_callback_interface");
+                    }
+                }
+            }
 
             base.BeforeInitialize();
         }
@@ -89,6 +178,19 @@ namespace Microsoft.Xna.Framework
             while (true)
             {
                 SdlRunLoop();
+
+                // If frame_callback is non-zero, we're waiting for the Wayland compositor to signal us when it's a good
+                // time to draw a frame. With Wayland V-Sync active, suppress drawing until we receive that signal.
+                if (WaylandVsync && _frameCallback != IntPtr.Zero)
+                    Game.SuppressDraw();
+
+                // If we're on Wayland and haven't requested a frame callback for the next refresh, do so.
+                if (_wl_callback_interface != IntPtr.Zero && _frameCallback == IntPtr.Zero)
+                {
+                    _frameCallback = wl_proxy_marshal_constructor(_wl_surface, 3, _wl_callback_interface, IntPtr.Zero);
+                    wl_proxy_add_listener(_frameCallback, _listenerHandle.AddrOfPinnedObject(), IntPtr.Zero);
+                }
+
                 Game.Tick();
                 Threading.Run();
                 GraphicsDevice.DisposeContexts();
@@ -336,6 +438,19 @@ namespace Microsoft.Xna.Framework
             Console.WriteLine(message);
         }
 
+        private void FrameDone(IntPtr data, IntPtr wl_callback, uint callback_data)
+        {
+            // Wayland callbacks are (most likely) dispatched within SDL.PollEvent within SdlRunLoop, which happens
+            // on the same thread as everything else, so no synchronization is necessary.
+
+            // Destroy the callback (necessary).
+            // wl_callback should be the same as frame_callback as we only register a single one.
+            wl_proxy_destroy(wl_callback);
+
+            // Set our variable back to zero so we know the callback has fired.
+            _frameCallback = IntPtr.Zero;
+        }
+
         public override void Present()
         {
             if (Game.GraphicsDevice != null)
@@ -344,6 +459,11 @@ namespace Microsoft.Xna.Framework
 
         protected override void Dispose(bool disposing)
         {
+            if (_frameCallback != IntPtr.Zero)
+                wl_proxy_destroy(_frameCallback);
+            if (_libwayland_client_handle != IntPtr.Zero)
+                dlclose(_libwayland_client_handle);
+
             if (_view != null)
             {
                 _view.Dispose();
@@ -351,6 +471,7 @@ namespace Microsoft.Xna.Framework
 
                 Joystick.CloseDevices();
 
+                Sdl.VideoQuit(); // Must be called manually when using Sdl.VideoInit.
                 Sdl.Quit();
             }
 

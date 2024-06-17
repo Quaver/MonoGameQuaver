@@ -550,6 +550,38 @@ namespace Microsoft.Xna.Framework.Input
         /// </summary>
 		OemTilde = 192,
         /// <summary>
+        /// :
+        /// </summary>
+		OemColon = 193,
+        /// <summary>
+        /// !
+        /// </summary>
+		OemExclamationMark = 194,
+        /// <summary>
+        /// ù
+        /// </summary>
+		PunctuatedU = 195,
+        /// <summary>
+        /// *
+        /// </summary>
+		Asterisk = 196,
+        /// <summary>
+        /// ^
+        /// </summary>
+		Caret = 197,
+        /// <summary>
+        /// $
+        /// </summary>
+		DollarSign = 198,
+        /// <summary>
+        /// )
+        /// </summary>
+		OemCloseParenthesis = 199,
+        /// <summary>
+        /// ²
+        /// </summary>
+		Squared = 200,
+        /// <summary>
         /// The OEM open bracket key on a US standard keyboard.
         /// </summary>
 		OemOpenBrackets = 219,

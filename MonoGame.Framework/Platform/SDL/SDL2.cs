@@ -225,6 +225,15 @@ internal static class Sdl
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int d_sdl_videoinit(string driverName);
+    public static d_sdl_videoinit SDL_VideoInit = FuncLoader.LoadFunction<d_sdl_videoinit>(NativeLibrary, "SDL_VideoInit");
+
+    public static int VideoInit(string driverName)
+    {
+        return GetError(SDL_VideoInit(driverName));
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void d_sdl_disablescreensaver();
     public static d_sdl_disablescreensaver DisableScreenSaver = FuncLoader.LoadFunction<d_sdl_disablescreensaver>(NativeLibrary, "SDL_DisableScreenSaver");
 
@@ -313,6 +322,10 @@ internal static class Sdl
     public static d_sdl_quit Quit = FuncLoader.LoadFunction<d_sdl_quit>(NativeLibrary, "SDL_Quit");
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void d_sdl_videoquit();
+    public static d_sdl_videoquit VideoQuit = FuncLoader.LoadFunction<d_sdl_videoquit>(NativeLibrary, "SDL_VideoQuit");
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate IntPtr d_sdl_rwfrommem(byte[] mem, int size);
     private static d_sdl_rwfrommem SDL_RWFromMem = FuncLoader.LoadFunction<d_sdl_rwfrommem>(NativeLibrary, "SDL_RWFromMem");
 
@@ -324,6 +337,32 @@ internal static class Sdl
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate int d_sdl_sethint(string name, string value);
     public static d_sdl_sethint SetHint = FuncLoader.LoadFunction<d_sdl_sethint>(NativeLibrary, "SDL_SetHint");
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate void d_sdl_free(IntPtr mem);
+    private static d_sdl_free SDL_free = FuncLoader.LoadFunction<d_sdl_free>(NativeLibrary, "SDL_free");
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate IntPtr d_sdl_getclipboardtext();
+    private static d_sdl_getclipboardtext SDL_GetClipboardText = FuncLoader.LoadFunction<d_sdl_getclipboardtext>(NativeLibrary, "SDL_GetClipboardText");
+
+    public static string GetClipboardText()
+    {
+        var handle = GetError(SDL_GetClipboardText());
+        var rv = InteropHelpers.Utf8ToString(handle);
+        SDL_free(handle);
+        return rv;
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int d_sdl_setclipboardtext(ref byte text);
+    private static d_sdl_setclipboardtext SDL_SetClipboardText = FuncLoader.LoadFunction<d_sdl_setclipboardtext>(NativeLibrary, "SDL_SetClipboardText");
+
+    public static void SetClipboardText(string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        GetError(SDL_SetClipboardText(ref bytes[0]));
+    }
 
     public static class Window
     {
@@ -396,12 +435,15 @@ internal static class Sdl
             Android
         }
 
-        [StructLayout(LayoutKind.Sequential)]
+        // With the way we're using this, the size should be >= the real struct size.
+        [StructLayout(LayoutKind.Sequential, Size = 1024)]
         public struct SDL_SysWMinfo
         {
             public Version version;
             public SysWMType subsystem;
-            public IntPtr window;
+            public IntPtr window; // Pointer to wl_display on Wayland
+
+            public IntPtr wl_surface; // Only on Wayland
         }
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]

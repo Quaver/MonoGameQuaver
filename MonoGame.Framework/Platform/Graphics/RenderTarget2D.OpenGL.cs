@@ -10,7 +10,17 @@ namespace Microsoft.Xna.Framework.Graphics
     public partial class RenderTarget2D
     {
         private static Action<RenderTarget2D> DisposeAction =
-            (t) => t.GraphicsDevice.PlatformDeleteRenderTarget(t);
+            (t) =>
+            {
+                try
+                {
+                    t.GraphicsDevice.PlatformDeleteRenderTarget(t);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+            };
 
         int IRenderTarget.GLTexture
         {

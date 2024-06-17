@@ -18,7 +18,11 @@ namespace Microsoft.Xna.Framework.Input
             _map.Add(13, Keys.Enter);
             _map.Add(27, Keys.Escape);
             _map.Add(32, Keys.Space);
+            _map.Add(33, Keys.OemExclamationMark);
+            _map.Add(36, Keys.DollarSign);
             _map.Add(39, Keys.OemQuotes);
+            _map.Add(41, Keys.OemCloseParenthesis);
+            _map.Add(42, Keys.Asterisk);
             _map.Add(43, Keys.Add);
             _map.Add(44, Keys.OemComma);
             _map.Add(45, Keys.OemMinus);
@@ -34,12 +38,14 @@ namespace Microsoft.Xna.Framework.Input
             _map.Add(55, Keys.D7);
             _map.Add(56, Keys.D8);
             _map.Add(57, Keys.D9);
+            _map.Add(58, Keys.OemColon);
             _map.Add(59, Keys.OemSemicolon);
             _map.Add(60, Keys.OemBackslash);
             _map.Add(61, Keys.OemPlus);
             _map.Add(91, Keys.OemOpenBrackets);
             _map.Add(92, Keys.OemPipe);
             _map.Add(93, Keys.OemCloseBrackets);
+            _map.Add(94, Keys.Caret);
             _map.Add(96, Keys.OemTilde);
             _map.Add(97, Keys.A);
             _map.Add(98, Keys.B);
@@ -68,6 +74,8 @@ namespace Microsoft.Xna.Framework.Input
             _map.Add(121, Keys.Y);
             _map.Add(122, Keys.Z);
             _map.Add(127, Keys.Delete);
+            _map.Add(178, Keys.Squared);
+            _map.Add(249, Keys.PunctuatedU);
             _map.Add(1073741881, Keys.CapsLock);
             _map.Add(1073741882, Keys.F1);
             _map.Add(1073741883, Keys.F2);
