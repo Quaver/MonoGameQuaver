@@ -960,11 +960,16 @@ namespace Microsoft.Xna.Framework.Graphics
             return prevTexture;
         }
 
-        [Conditional("DEBUG")]
+        /// <summary>
+        ///     Temporary change from "DEBUG" to further investigate crashes.
+        ///     This method should not be running in production (which requires debug mode for performance reasons...)
+        /// </summary>
+        [Conditional("DEBUGGING")]
 		[DebuggerHidden]
         public static void CheckGLError()
         {
            var error = GL.GetError();
+
             //Console.WriteLine(error);
             if (error != ErrorCode.NoError)
                 throw new MonoGameGLException("GL.GetError() returned " + error.ToString());

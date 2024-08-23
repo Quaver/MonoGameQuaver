@@ -127,9 +127,9 @@ namespace Microsoft.Xna.Framework
 	    /// Raised when <see cref="ScreenDeviceName"/> changed.
 	    /// </summary>
 		public event EventHandler<EventArgs> ScreenDeviceNameChanged;
+	    public event EventHandler<string> FileDropped;
 
 #if WINDOWS || WINDOWS_UAP || DESKTOPGL|| ANGLE
-
         /// <summary>
 		/// Use this event to user text input.
 		/// 
@@ -205,6 +205,7 @@ namespace Microsoft.Xna.Framework
 	    /// <summary>
 	    /// Called when <see cref="CurrentOrientation"/> changed. Raises the <see cref="OnOrientationChanged"/> event.
 	    /// </summary>
+
 		protected void OnOrientationChanged ()
 		{
             EventHelpers.Raise(this, OrientationChanged, EventArgs.Empty);
@@ -222,13 +223,21 @@ namespace Microsoft.Xna.Framework
             EventHelpers.Raise(this, ScreenDeviceNameChanged, EventArgs.Empty);
 		}
 
+	    protected void OnFileDropped(object sender, string arg)
+	    {
+	        var ev = FileDropped;
+
+	        if (ev != null)
+	            ev.Invoke(sender, arg);
+	    }
+
 #if WINDOWS || WINDOWS_UAP || DESKTOPGL || ANGLE
 	    /// <summary>
 	    /// Called when the window receives text input. Raises the <see cref="TextInput"/> event.
 	    /// </summary>
 	    /// <param name="sender">The game window.</param>
 	    /// <param name="e">Parameters to the <see cref="TextInput"/> event.</param>
-		internal void OnTextInput(TextInputEventArgs e)
+        internal void OnTextInput(object sender, TextInputEventArgs e)
 		{
             EventHelpers.Raise(this, TextInput, e);
 		}
@@ -248,6 +257,7 @@ namespace Microsoft.Xna.Framework
 	    /// Set the title of this window to the given string.
 	    /// </summary>
 	    /// <param name="title">The new title of the window.</param>
+
 		protected abstract void SetTitle (string title);
 
 #if DIRECTX && WINDOWS
