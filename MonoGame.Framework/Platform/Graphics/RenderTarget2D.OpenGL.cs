@@ -36,8 +36,6 @@ namespace Microsoft.Xna.Framework.Graphics
             {
                 graphicsDevice.PlatformCreateRenderTarget(this, width, height, mipMap, this.Format, preferredDepthFormat, preferredMultiSampleCount, usage);
             });
-            
-            
         }
 
         private void PlatformGraphicsDeviceResetting()
@@ -52,7 +50,14 @@ namespace Microsoft.Xna.Framework.Graphics
                 {
                     Threading.BlockOnUIThread(() =>
                     {
-                        this.GraphicsDevice.PlatformDeleteRenderTarget(this);
+                        try
+                        {
+                            GraphicsDevice.PlatformDeleteRenderTarget(this);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
                     });
                 }
             }

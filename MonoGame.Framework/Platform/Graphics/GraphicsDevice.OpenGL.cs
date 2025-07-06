@@ -711,6 +711,9 @@ namespace Microsoft.Xna.Framework.Graphics
 
         internal void PlatformDeleteRenderTarget(IRenderTarget renderTarget)
         {
+            if (renderTarget == null)
+                return;
+
             var color = 0;
             var depth = 0;
             var stencil = 0;

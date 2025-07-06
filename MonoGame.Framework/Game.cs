@@ -60,12 +60,35 @@ namespace Microsoft.Xna.Framework
         private bool _shouldExit;
         private bool _suppressDraw;
 
+        // If set to true, enables Wayland VSync on the SDL game platform.
+        public bool WaylandVsync
+        {
+            get
+            {
+                if (Platform is SdlGamePlatform sdlGamePlatform)
+                    return sdlGamePlatform.WaylandVsync;
+
+                return false;
+            }
+
+            set
+            {
+                if (Platform is SdlGamePlatform sdlGamePlatform)
+                    sdlGamePlatform.WaylandVsync = value;
+            }
+        }
+
+        /// <summary>
+        ///     If set to true, try to initialize the Wayland SDL video platform first.
+        /// </summary>
+        internal bool PreferWayland { get; }
+
         partial void PlatformConstruct();
 
         /// <summary>
         /// Create a <see cref="Game"/>.
         /// </summary>
-        public Game()
+        public Game(bool preferWayland = false)
         {
             _instance = this;
 
@@ -74,6 +97,7 @@ namespace Microsoft.Xna.Framework
             _components = new GameComponentCollection();
             _content = new ContentManager(_services);
 
+            PreferWayland = preferWayland; // Needs to be set before PlatformCreate.
             Platform = GamePlatform.PlatformCreate(this);
             Platform.Activated += OnActivated;
             Platform.Deactivated += OnDeactivated;
@@ -430,7 +454,7 @@ namespace Microsoft.Xna.Framework
                 _initialized = true;
             }
 
-            BeginRun();            
+            BeginRun();
 
             //Not quite right..
             Tick ();
@@ -508,8 +532,8 @@ namespace Microsoft.Xna.Framework
         public void Tick()
         {
             // NOTE: This code is very sensitive and can break very badly
-            // with even what looks like a safe change.  Be sure to test 
-            // any change fully in both the fixed and variable timestep 
+            // with even what looks like a safe change.  Be sure to test
+            // any change fully in both the fixed and variable timestep
             // modes across multiple devices and platforms.
 
         RetryTick:
@@ -810,7 +834,7 @@ namespace Microsoft.Xna.Framework
             if (Platform.BeforeUpdate(gameTime))
             {
                 FrameworkDispatcher.Update();
-				
+
                 Update(gameTime);
 
                 //The TouchPanel needs to know the time for when touches arrive
@@ -844,7 +868,7 @@ namespace Microsoft.Xna.Framework
             // 1. Categorize components into IUpdateable and IDrawable lists.
             // 2. Subscribe to Added/Removed events to keep the categorized
             //    lists synced and to Initialize future components as they are
-            //    added.            
+            //    added.
             CategorizeComponents();
             _components.ComponentAdded += Components_ComponentAdded;
             _components.ComponentRemoved += Components_ComponentRemoved;
@@ -1190,6 +1214,28 @@ namespace Microsoft.Xna.Framework
 
                 return object.Equals(Item, ((AddJournalEntry<T>)obj).Item);
             }
+        }
+
+        /// <summary>
+        ///     Gets the clipboard contents if Platform is SDL.
+        /// </summary>
+        /// <returns></returns>
+        public string GetClipboardText()
+        {
+            if (Platform is SdlGamePlatform)
+                return Sdl.GetClipboardText();
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        ///     Sets the clipboard contents if Platform is SDL.
+        /// </summary>
+        /// <returns></returns>
+        public void SetClipboardText(string text)
+        {
+            if (Platform is SdlGamePlatform)
+                Sdl.SetClipboardText(text);
         }
     }
 }

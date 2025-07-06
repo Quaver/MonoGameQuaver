@@ -29,6 +29,21 @@ internal static class Sdl
     public static int Minor;
     public static int Patch;
 
+    public static unsafe string GetString(IntPtr handle)
+    {
+        if (handle == IntPtr.Zero)
+            return "";
+
+        var ptr = (byte*)handle;
+        while (*ptr != 0)
+            ptr++;
+
+        var bytes = new byte[ptr - (byte*)handle];
+        Marshal.Copy(handle, bytes, 0, bytes.Length);
+
+        return Encoding.UTF8.GetString(bytes);
+    }
+
     [Flags]
     public enum InitFlags
     {
@@ -114,6 +129,8 @@ internal static class Sdl
         [FieldOffset(0)]
         public Mouse.MotionEvent Motion;
         [FieldOffset(0)]
+        public Mouse.ButtonEvent Button;
+        [FieldOffset(0)]
         public Keyboard.TextEditingEvent Edit;
         [FieldOffset(0)]
         public Keyboard.TextInputEvent Text;
@@ -123,6 +140,8 @@ internal static class Sdl
         public Joystick.DeviceEvent JoystickDevice;
         [FieldOffset(0)]
         public GameController.DeviceEvent ControllerDevice;
+        [FieldOffset(0)]
+        public Drop.DropEvent Drop;
     }
 
     public struct Rectangle
@@ -131,6 +150,18 @@ internal static class Sdl
         public int Y;
         public int Width;
         public int Height;
+    }
+
+    public static class Drop
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        public unsafe struct DropEvent
+        {
+            public EventType Type;
+            public uint Timestamp;
+            public IntPtr File;
+            public uint WindowId;
+        }
     }
 
     public struct Version
@@ -147,6 +178,15 @@ internal static class Sdl
     public static void Init(int flags)
     {
         GetError(SDL_Init(flags));
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int d_sdl_videoinit(string driverName);
+    public static d_sdl_videoinit SDL_VideoInit = FuncLoader.LoadFunction<d_sdl_videoinit>(NativeLibrary, "SDL_VideoInit");
+
+    public static int VideoInit(string driverName)
+    {
+        return GetError(SDL_VideoInit(driverName));
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -238,6 +278,10 @@ internal static class Sdl
     public static d_sdl_quit Quit = FuncLoader.LoadFunction<d_sdl_quit>(NativeLibrary, "SDL_Quit");
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void d_sdl_videoquit();
+    public static d_sdl_videoquit VideoQuit = FuncLoader.LoadFunction<d_sdl_videoquit>(NativeLibrary, "SDL_VideoQuit");
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate IntPtr d_sdl_rwfrommem(byte[] mem, int size);
     private static d_sdl_rwfrommem SDL_RWFromMem = FuncLoader.LoadFunction<d_sdl_rwfrommem>(NativeLibrary, "SDL_RWFromMem");
 
@@ -249,6 +293,32 @@ internal static class Sdl
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate int d_sdl_sethint(string name, string value);
     public static d_sdl_sethint SetHint = FuncLoader.LoadFunction<d_sdl_sethint>(NativeLibrary, "SDL_SetHint");
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate void d_sdl_free(IntPtr mem);
+    private static d_sdl_free SDL_free = FuncLoader.LoadFunction<d_sdl_free>(NativeLibrary, "SDL_free");
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate IntPtr d_sdl_getclipboardtext();
+    private static d_sdl_getclipboardtext SDL_GetClipboardText = FuncLoader.LoadFunction<d_sdl_getclipboardtext>(NativeLibrary, "SDL_GetClipboardText");
+
+    public static string GetClipboardText()
+    {
+        var handle = GetError(SDL_GetClipboardText());
+        var rv = InteropHelpers.Utf8ToString(handle);
+        SDL_free(handle);
+        return rv;
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int d_sdl_setclipboardtext(ref byte text);
+    private static d_sdl_setclipboardtext SDL_SetClipboardText = FuncLoader.LoadFunction<d_sdl_setclipboardtext>(NativeLibrary, "SDL_SetClipboardText");
+
+    public static void SetClipboardText(string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        GetError(SDL_SetClipboardText(ref bytes[0]));
+    }
 
     public static class Window
     {
@@ -321,12 +391,15 @@ internal static class Sdl
             Android
         }
 
-        [StructLayout(LayoutKind.Sequential)]
+        // With the way we're using this, the size should be >= the real struct size.
+        [StructLayout(LayoutKind.Sequential, Size = 1024)]
         public struct SDL_SysWMinfo
         {
             public Version version;
             public SysWMType subsystem;
-            public IntPtr window;
+            public IntPtr window; // Pointer to wl_display on Wayland
+
+            public IntPtr wl_surface; // Only on Wayland
         }
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -589,13 +662,22 @@ internal static class Sdl
     public static class Mouse
     {
         [Flags]
-        public enum Button
+        public enum ButtonMask
         {
             Left = 1 << 0,
             Middle = 1 << 1,
             Right = 1 << 2,
             X1Mask = 1 << 3,
             X2Mask = 1 << 4
+        }
+
+        public enum Button
+        {
+            Left = 1,
+            Middle = 2,
+            Right = 3,
+            X1 = 4,
+            X2 = 5
         }
 
         public enum SystemCursor
@@ -629,6 +711,21 @@ internal static class Sdl
             public int Y;
             public int Xrel;
             public int Yrel;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct ButtonEvent
+        {
+            public EventType Type;
+            public uint Timestamp;
+            public uint WindowID;
+            public uint Which;
+            public byte Button;
+            public byte State;
+            public byte Clicks;
+            private byte _padding3;
+            public int X;
+            public int Y;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -666,11 +763,11 @@ internal static class Sdl
         public static d_sdl_freecursor FreeCursor = FuncLoader.LoadFunction<d_sdl_freecursor>(NativeLibrary, "SDL_FreeCursor");
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate Button d_sdl_getglobalmousestate(out int x, out int y);
+        public delegate ButtonMask d_sdl_getglobalmousestate(out int x, out int y);
         public static d_sdl_getglobalmousestate GetGlobalState = FuncLoader.LoadFunction<d_sdl_getglobalmousestate>(NativeLibrary, "SDL_GetGlobalMouseState");
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate Button d_sdl_getmousestate(out int x, out int y);
+        public delegate ButtonMask d_sdl_getmousestate(out int x, out int y);
         public static d_sdl_getmousestate GetState = FuncLoader.LoadFunction<d_sdl_getmousestate>(NativeLibrary, "SDL_GetMouseState");
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]

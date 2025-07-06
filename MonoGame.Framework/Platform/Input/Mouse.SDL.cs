@@ -24,17 +24,11 @@ namespace Microsoft.Xna.Framework.Input
         {
             int x, y;
             var winFlags = Sdl.Window.GetWindowFlags(window.Handle);
-            var state = Sdl.Mouse.GetGlobalState(out x, out y);
+            Sdl.Mouse.GetGlobalState(out x, out y);
 
             if ((winFlags & Sdl.Window.State.MouseFocus) != 0)
             {
-                // Window has mouse focus, position will be set from the motion event
-                window.MouseState.LeftButton = (state & Sdl.Mouse.Button.Left) != 0 ? ButtonState.Pressed : ButtonState.Released;
-                window.MouseState.MiddleButton = (state & Sdl.Mouse.Button.Middle) != 0 ? ButtonState.Pressed : ButtonState.Released;
-                window.MouseState.RightButton = (state & Sdl.Mouse.Button.Right) != 0 ? ButtonState.Pressed : ButtonState.Released;
-                window.MouseState.XButton1 = (state & Sdl.Mouse.Button.X1Mask) != 0 ? ButtonState.Pressed : ButtonState.Released;
-                window.MouseState.XButton2 = (state & Sdl.Mouse.Button.X2Mask) != 0 ? ButtonState.Pressed : ButtonState.Released;
-
+                // Window has mouse focus, position and button state will be set from the motion event
                 window.MouseState.HorizontalScrollWheelValue = ScrollX;
                 window.MouseState.ScrollWheelValue = ScrollY;
             }

@@ -300,6 +300,20 @@ namespace Microsoft.Xna.Framework
             OnClientSizeChanged();
         }
 
+        public void CallTextInput(char c, Keys key = Keys.None)
+        {
+            OnTextInput(this, new TextInputEventArgs(c, key));
+        }
+
+        public void CallFileDrop(string filepath)
+        {
+            // If e is a file:// URI (for example, on Wayland), it needs to be converted to a local path. If it's
+            // already a local path, this function leaves it as is.
+            filepath = new Uri(filepath).LocalPath;
+
+            OnFileDropped(this, filepath);
+        }
+
         protected internal override void SetSupportedOrientations(DisplayOrientation orientations)
         {
             // Nothing to do here
